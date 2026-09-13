@@ -55,6 +55,8 @@
   .lienhe-luoi{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px;}
   .lienhe-o{display:flex; gap:10px; align-items:flex-start; font-size:14px;}
   .lienhe-o .icon{font-size:18px; flex:none;}
+  .ban-do-khung{border-radius:12px; overflow:hidden; border:1px solid var(--line);}
+  .ban-do-khung iframe{width:100%; height:320px; display:block;}
 
   /* ---------- Bảng chung ---------- */
   table{width:100%; border-collapse:collapse; font-size:13.5px;}
@@ -135,6 +137,12 @@
       </div>
       <button class="btn btn-nhat btn-sm" id="gtSuaBtn" style="display:none; margin-top:16px;">✏️ Sửa thông tin giới thiệu</button>
     </div>
+
+    <div class="card" id="gtBanDoCard" style="display:none;">
+      <h2>📍 Vị trí trung tâm</h2>
+      <div class="ban-do-khung"><iframe id="gtBanDoIframe" loading="lazy" style="border:0;" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe></div>
+      <a class="btn btn-vang btn-sm" id="gtChiDuongBtn" target="_blank" rel="noopener" style="display:inline-block; margin-top:14px; text-decoration:none;">🧭 Chỉ đường trên Google Maps</a>
+    </div>
   </div>
 
   <!-- ============ GIÁO VIÊN ============ -->
@@ -212,20 +220,20 @@
    (đây PHẢI là 1 dự án Firebase MỚI, KHÔNG dùng chung với trang web lớp 10A1)
    ================================================================ */
 const firebaseConfig = {
-  apiKey: "DIEN_API_KEY_CUA_BAN",
-  authDomain: "DIEN_TEN_DU_AN.firebaseapp.com",
-  databaseURL: "https://DIEN_TEN_DU_AN-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "DIEN_TEN_DU_AN",
-  storageBucket: "DIEN_TEN_DU_AN.firebasestorage.app",
-  messagingSenderId: "DIEN_SO",
-  appId: "DIEN_APP_ID"
+  apiKey: "AIzaSyDCwZ5AH50qatr5Pv6jLEY2f-1XuOg3Ghg",
+  authDomain: "giasunhankiet.firebaseapp.com",
+  databaseURL: "https://giasunhankiet-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "giasunhankiet",
+  storageBucket: "giasunhankiet.firebasestorage.app",
+  messagingSenderId: "317599627387",
+  appId: "1:317599627387:web:18fb8ec7f319ca9a560ade"
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 const auth = firebase.auth();
 
 /* Sau khi tạo tài khoản quản trị (Bước 3 trong hướng dẫn), dán đúng UID vào đây */
-const ADMIN_UID = "DIEN_UID_QUAN_TRI_VAO_DAY";
+const ADMIN_UID = "3fiTh7W78GeHSiYVZwNqXzksVWi1";
 
 const giaoVienRef = db.ref('giaovien');
 const hocSinhRef  = db.ref('hocsinh');
@@ -272,13 +280,26 @@ window.addEventListener('hashchange', moTheoHash);
 moTheoHash();
 
 /* -------------------- GIỚI THIỆU (TRANG CHỦ) -------------------- */
+/* Tọa độ mặc định của trung tâm (từ Google Maps) — dùng khi chưa có ai chỉnh sửa lại trong
+   khu quản trị. Có thể sửa lại tọa độ này bất kỳ lúc nào qua nút "Sửa thông tin giới thiệu". */
+const TOA_DO_MAC_DINH = { lat: 9.8423467, lng: 105.4057954 };
+
+function capNhatBanDo(lat, lng){
+  const card = $('gtBanDoCard');
+  if(!lat || !lng){ card.style.display = 'none'; return; }
+  card.style.display = 'block';
+  $('gtBanDoIframe').src = `https://www.google.com/maps?q=${lat},${lng}&hl=vi&z=17&output=embed`;
+  $('gtChiDuongBtn').href = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+}
+
 gioiThieuRef.on('value', s=>{
   const gt = s.val() || {};
   $('gtTieuDe').textContent = gt.tieuDe || 'Giới thiệu trung tâm';
   $('gtMoTa').textContent = gt.moTa || 'Trung tâm gia sư Nhân Kiệt chuyên bồi dưỡng kiến thức các cấp học, đội ngũ giáo viên tận tâm, giàu kinh nghiệm.';
   $('gtDiaChi').textContent = gt.diaChi || 'Đang cập nhật';
-  $('gtSdt').textContent = gt.sdt || 'Đang cập nhật';
+  $('gtSdt').textContent = gt.sdt || '0907.532.581 - Cô Pha';
   $('gtEmail').textContent = gt.email || 'Đang cập nhật';
+  capNhatBanDo(gt.lat || TOA_DO_MAC_DINH.lat, gt.lng || TOA_DO_MAC_DINH.lng);
 });
 $('gtSuaBtn').onclick = ()=>{
   gioiThieuRef.once('value').then(s=>{
@@ -287,8 +308,12 @@ $('gtSuaBtn').onclick = ()=>{
       <label>Tiêu đề</label><input type="text" id="fGtTieuDe" value="${esc(gt.tieuDe||'')}" maxlength="80">
       <label>Mô tả</label><textarea id="fGtMoTa" maxlength="1000">${esc(gt.moTa||'')}</textarea>
       <label>Địa chỉ</label><input type="text" id="fGtDiaChi" value="${esc(gt.diaChi||'')}" maxlength="150">
-      <label>Số điện thoại</label><input type="text" id="fGtSdt" value="${esc(gt.sdt||'')}" maxlength="20">
+      <label>Số điện thoại</label><input type="text" id="fGtSdt" value="${esc(gt.sdt||'0907.532.581 - Cô Pha')}" maxlength="30">
       <label>Email</label><input type="text" id="fGtEmail" value="${esc(gt.email||'')}" maxlength="60">
+      <label>Vị trí trên Google Maps</label>
+      <p class="ghichu" style="margin:0 0 6px;">Mở Google Maps, tìm đúng vị trí, bấm chuột phải vào điểm đó → chọn dãy số hiện ra đầu tiên (đó là tọa độ) → dán vào đây.</p>
+      <input type="text" id="fGtLat" value="${gt.lat||TOA_DO_MAC_DINH.lat}" placeholder="Vĩ độ (lat)" style="margin-bottom:8px;">
+      <input type="text" id="fGtLng" value="${gt.lng||TOA_DO_MAC_DINH.lng}" placeholder="Kinh độ (lng)">
       <div id="fGtErr" class="msg err"></div>
       <div class="modal-nut">
         <button class="btn btn-nhat btn-sm" onclick="closeModal()">Hủy</button>
@@ -298,7 +323,9 @@ $('gtSuaBtn').onclick = ()=>{
       try{
         await gioiThieuRef.set({
           tieuDe: $('fGtTieuDe').value.trim(), moTa: $('fGtMoTa').value.trim(),
-          diaChi: $('fGtDiaChi').value.trim(), sdt: $('fGtSdt').value.trim(), email: $('fGtEmail').value.trim()
+          diaChi: $('fGtDiaChi').value.trim(), sdt: $('fGtSdt').value.trim(), email: $('fGtEmail').value.trim(),
+          lat: parseFloat($('fGtLat').value) || TOA_DO_MAC_DINH.lat,
+          lng: parseFloat($('fGtLng').value) || TOA_DO_MAC_DINH.lng
         });
         closeModal();
       }catch(e){ showMsg($('fGtErr'), baoLoi(e), 'err'); }
