@@ -1,0 +1,111 @@
+{
+  "rules": {
+    ".read": true,
+    ".write": false,
+    "giaovien": {
+      ".write": "auth != null && auth.uid === '3fiTh7W78GeHSiYVZwNqXzksVWi1'",
+      "$id": {
+        ".validate": "!newData.exists() || newData.hasChildren(['hoTen'])",
+        "hoTen": {
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 60"
+        },
+        "monDay": {
+          ".validate": "newData.isString() && newData.val().length <= 60"
+        },
+        "sdt": {
+          ".validate": "newData.isString() && newData.val().length <= 30"
+        },
+        "$khac": {
+          ".validate": false
+        },
+        "bangCap": {
+          ".validate": "newData.isString() && newData.val().length <= 20000"
+        },
+        "thanhTich": {
+          ".validate": "newData.isString() && newData.val().length <= 20000"
+        },
+        "anhChanDungId": {
+          ".validate": "newData.val() === null || (newData.isString() && newData.val().length <= 100)"
+        },
+        "anhBangCap": {
+          ".validate": "true",
+          "$aid": {
+            ".validate": "newData.isString() && newData.val().length <= 100"
+          }
+        }
+      }
+    },
+    "hocsinh": {
+      ".write": "auth != null && auth.uid === '3fiTh7W78GeHSiYVZwNqXzksVWi1'",
+      "$id": {
+        ".validate": "!newData.exists() || newData.hasChildren(['hoTen'])",
+        "hoTen": {
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 60"
+        },
+        "lop": {
+          ".validate": "newData.isString() && newData.val().length <= 30"
+        },
+        "mon": {
+          ".validate": "newData.isString() && newData.val().length <= 60"
+        },
+        "sdtPhuHuynh": {
+          ".validate": "newData.isString() && newData.val().length <= 20"
+        },
+        "$khac": {
+          ".validate": false
+        }
+      }
+    },
+    "thoikhoabieu": {
+      ".write": "auth != null && auth.uid === '3fiTh7W78GeHSiYVZwNqXzksVWi1'",
+      "$id": {
+        ".validate": "!newData.exists() || newData.hasChildren(['mon'])",
+        "thu": {
+          ".validate": "newData.isString() && newData.val().length <= 20"
+        },
+        "gio": {
+          ".validate": "newData.isString() && newData.val().length <= 30"
+        },
+        "mon": {
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40"
+        },
+        "giaoVien": {
+          ".validate": "newData.isString() && newData.val().length <= 60"
+        },
+        "phong": {
+          ".validate": "newData.isString() && newData.val().length <= 30"
+        },
+        "$khac": {
+          ".validate": false
+        }
+      }
+    },
+    "gioithieu": {
+      ".write": "auth != null && auth.uid === '3fiTh7W78GeHSiYVZwNqXzksVWi1'",
+      "tieuDe": {
+        ".validate": "newData.isString() && newData.val().length <= 80"
+      },
+      "moTa": {
+        ".validate": "newData.isString() && newData.val().length <= 1000"
+      },
+      "diaChi": {
+        ".validate": "newData.isString() && newData.val().length <= 150"
+      },
+      "sdt": {
+        ".validate": "newData.isString() && newData.val().length <= 40"
+      },
+      "email": {
+        ".validate": "newData.isString() && newData.val().length <= 60"
+      },
+      "$khac": {
+        ".validate": false
+      },
+      "lat": {
+        ".validate": "newData.isNumber()"
+      },
+      "lng": {
+        ".validate": "newData.isNumber()"
+      }
+    }
+  }
+}
