@@ -253,7 +253,7 @@ const gioiThieuRef = db.ref('gioithieu');
    chỉ lưu lại ID ảnh đó để hiển thị. CẦN TRIỂN KHAI Apps Script riêng (xem hướng dẫn kèm theo)
    rồi dán đúng URL vào đây thì tính năng đính kèm ảnh mới hoạt động được.
    ================================================================ */
-const DRIVE_URL = 'DIEN_URL_APPS_SCRIPT_SAU_KHI_TRIEN_KHAI';
+const DRIVE_URL = 'https://script.google.com/macros/s/AKfycbwSgHUNCDlbX2II0Vd68XdIoGoy42Ah6FjX-Oj1Uw3tR68pezScLHwkiLPJoSGpkeWv/exec';
 const MA_DRIVE  = 'giasunhankiet2026';
 function dungDrive(){ return DRIVE_URL && !DRIVE_URL.includes('DIEN_'); }
 function anhDriveNho(id){ return `https://drive.google.com/thumbnail?id=${id}&sz=w400`; }
