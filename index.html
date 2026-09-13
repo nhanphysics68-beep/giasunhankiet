@@ -67,14 +67,20 @@
   .rong{text-align:center; color:var(--ink-soft); padding:30px 10px; font-size:13.5px;}
 
   /* ---------- Thẻ giáo viên ---------- */
-  #dsGiaoVien{display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:16px;}
+  #dsGiaoVien{display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:16px;}
   .gv-the{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px; box-shadow:var(--shadow); text-align:center;}
-  .gv-anh{width:64px; height:64px; border-radius:50%; background:linear-gradient(135deg,var(--gold),var(--gold-dark));
-    color:#fff; display:flex; align-items:center; justify-content:center; font-size:24px; font-weight:800; margin:0 auto 10px; font-family:Georgia,serif;}
+  .gv-anh, .gv-anh-that{width:72px; height:72px; border-radius:50%; margin:0 auto 10px; object-fit:cover;}
+  .gv-anh{background:linear-gradient(135deg,var(--gold),var(--gold-dark));
+    color:#fff; display:flex; align-items:center; justify-content:center; font-size:26px; font-weight:800; font-family:Georgia,serif;}
+  .gv-anh-that{border:2px solid var(--gold);}
   .gv-ten{font-weight:700; font-size:15px; color:var(--navy); margin-bottom:4px;}
-  .gv-mon{display:inline-block; background:#EAF1F8; color:var(--navy); font-size:12px; font-weight:700; padding:3px 10px; border-radius:999px; margin-bottom:8px;}
-  .gv-dong{font-size:12.5px; color:var(--ink-soft); margin-bottom:2px;}
-  .gv-thaotac{display:flex; gap:6px; justify-content:center; margin-top:10px;}
+  .gv-mon{display:inline-block; background:#EAF1F8; color:var(--navy); font-size:12px; font-weight:700; padding:3px 10px; border-radius:999px; margin-bottom:10px;}
+  .gv-muc{text-align:left; margin-bottom:9px; font-size:12.5px;}
+  .gv-muc b{display:block; color:var(--navy); font-size:11.5px; margin-bottom:2px;}
+  .gv-muc p{margin:0; color:var(--ink-soft); white-space:pre-line; line-height:1.5;}
+  .gv-anh-bangcap{display:flex; gap:6px; flex-wrap:wrap; margin:6px 0;}
+  .gv-anh-bangcap img{width:52px; height:52px; object-fit:cover; border-radius:6px; border:1px solid var(--line); cursor:pointer;}
+  .gv-thaotac{display:flex; gap:6px; justify-content:center; margin-top:10px; flex-wrap:wrap;}
 
   /* ---------- Thời khóa biểu ---------- */
   .tkb-mon{display:inline-block; background:var(--navy); color:#fff; font-size:12px; font-weight:700; padding:2px 9px; border-radius:6px;}
@@ -240,6 +246,49 @@ const hocSinhRef  = db.ref('hocsinh');
 const tkbRef      = db.ref('thoikhoabieu');
 const gioiThieuRef = db.ref('gioithieu');
 
+/* ================================================================
+   LƯU ẢNH LÊN GOOGLE DRIVE — dùng cho ảnh chân dung + ảnh bằng cấp/chứng chỉ giáo viên.
+   Nguyên tắc: Firebase Realtime Database chỉ để lưu CHỮ, không phù hợp lưu ảnh/tệp dung lượng
+   lớn — mọi ảnh đều nén lại rồi gửi qua 1 Apps Script riêng để lưu vào Google Drive, Firebase
+   chỉ lưu lại ID ảnh đó để hiển thị. CẦN TRIỂN KHAI Apps Script riêng (xem hướng dẫn kèm theo)
+   rồi dán đúng URL vào đây thì tính năng đính kèm ảnh mới hoạt động được.
+   ================================================================ */
+const DRIVE_URL = 'DIEN_URL_APPS_SCRIPT_SAU_KHI_TRIEN_KHAI';
+const MA_DRIVE  = 'giasunhankiet2026';
+function dungDrive(){ return DRIVE_URL && !DRIVE_URL.includes('DIEN_'); }
+function anhDriveNho(id){ return `https://drive.google.com/thumbnail?id=${id}&sz=w400`; }
+function anhDriveLon(id){ return `https://lh3.googleusercontent.com/d/${id}=w1600`; }
+function nenAnh(file, canhDai, chatLuong){
+  return new Promise((resolve,reject)=>{
+    const reader = new FileReader();
+    reader.onload = e=>{
+      const img = new Image();
+      img.onload = ()=>{
+        let w=img.width, h=img.height;
+        if(w>=h){ if(w>canhDai){ h=Math.round(h*canhDai/w); w=canhDai; } }
+        else { if(h>canhDai){ w=Math.round(w*canhDai/h); h=canhDai; } }
+        const canvas = document.createElement('canvas');
+        canvas.width=w; canvas.height=h;
+        canvas.getContext('2d').drawImage(img,0,0,w,h);
+        resolve(canvas.toDataURL('image/jpeg', chatLuong));
+      };
+      img.onerror = ()=> reject(new Error('Không đọc được ảnh.'));
+      img.src = e.target.result;
+    };
+    reader.onerror = ()=> reject(new Error('Không đọc được tệp.'));
+    reader.readAsDataURL(file);
+  });
+}
+async function guiAnhLenDrive(duLieuAnh, tenNguoiDang, tenThuMuc){
+  const resp = await fetch(DRIVE_URL, {
+    method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body: JSON.stringify({ ma: MA_DRIVE, anh: duLieuAnh, ten: tenNguoiDang, thuMuc: tenThuMuc })
+  });
+  const kq = await resp.json();
+  if(!kq.ok) throw new Error(kq.loi || 'Lỗi tải ảnh lên Drive');
+  return kq;
+}
+
 let isAdmin = false;
 let giaoVien = {}, hocSinh = {}, thoiKhoaBieu = {};
 
@@ -345,17 +394,24 @@ function renderGiaoVien(){
   $('gvNhapExcelBtn').style.display = isAdmin ? 'inline-block' : 'none';
   $('tkSoGiaoVien').textContent = ds.length;
 
-  host.innerHTML = ds.map(([id,gv])=> `<div class="gv-the">
-      <div class="gv-anh">${chuHoaChuCai(gv.hoTen)}</div>
+  host.innerHTML = ds.map(([id,gv])=>{
+    const dsAnhBangCap = gv.anhBangCap ? Object.values(gv.anhBangCap) : [];
+    return `<div class="gv-the">
+      ${gv.anhChanDungId
+        ? `<img class="gv-anh-that" src="${anhDriveNho(gv.anhChanDungId)}" alt="${esc(gv.hoTen||'')}">`
+        : `<div class="gv-anh">${chuHoaChuCai(gv.hoTen)}</div>`}
       <div class="gv-ten">${esc(gv.hoTen||'')}</div>
       <div class="gv-mon">${esc(gv.monDay||'Chưa rõ môn')}</div>
-      <div class="gv-dong">📞 ${esc(gv.sdt||'—')}</div>
-      ${gv.ghiChu ? `<div class="gv-dong">${esc(gv.ghiChu)}</div>` : ''}
+      <div class="gv-muc"><b>📞 Số điện thoại</b>${esc(gv.sdt||'—')}</div>
+      ${gv.bangCap ? `<div class="gv-muc"><b>🎓 Bằng cấp</b><p>${esc(gv.bangCap)}</p></div>` : ''}
+      ${gv.thanhTich ? `<div class="gv-muc"><b>🏆 Thành tích giảng dạy</b><p>${esc(gv.thanhTich)}</p></div>` : ''}
+      ${dsAnhBangCap.length ? `<div class="gv-anh-bangcap">${dsAnhBangCap.map(aid=> `<img src="${anhDriveNho(aid)}" onclick="window.open('${anhDriveLon(aid)}','_blank')">`).join('')}</div>` : ''}
       ${isAdmin ? `<div class="gv-thaotac">
         <button class="btn btn-nhat btn-sm" data-gv-sua="${id}">Sửa</button>
         <button class="btn btn-huy btn-sm" data-gv-xoa="${id}">Xóa</button>
       </div>` : ''}
-    </div>`).join('');
+    </div>`;
+  }).join('');
 
   host.querySelectorAll('[data-gv-sua]').forEach(b=> b.onclick = ()=> moModalGiaoVien(b.getAttribute('data-gv-sua')));
   host.querySelectorAll('[data-gv-xoa]').forEach(b=> b.onclick = async ()=>{
@@ -366,20 +422,81 @@ function renderGiaoVien(){
 }
 function moModalGiaoVien(id){
   const gv = id ? giaoVien[id] : null;
+  let dsAnhBangCapMoi = gv && gv.anhBangCap ? Object.values(gv.anhBangCap) : [];
+  let anhChanDungMoiId = gv ? gv.anhChanDungId : null;
+
   openModal(`<h3>${gv?'Sửa':'Thêm'} giáo viên</h3>
     <label>Họ và tên</label><input type="text" id="fGvTen" value="${gv?esc(gv.hoTen):''}" maxlength="60">
-    <label>Môn dạy</label><input type="text" id="fGvMon" value="${gv?esc(gv.monDay):''}" maxlength="60" placeholder="VD: Toán, Lý, Anh văn...">
-    <label>Số điện thoại</label><input type="text" id="fGvSdt" value="${gv?esc(gv.sdt):''}" maxlength="20">
-    <label>Ghi chú (kinh nghiệm, bằng cấp...)</label><textarea id="fGvGhiChu" maxlength="200">${gv?esc(gv.ghiChu||''):''}</textarea>
+    <label>Môn giảng dạy</label><input type="text" id="fGvMon" value="${gv?esc(gv.monDay):''}" maxlength="60" placeholder="VD: Toán, Lý, Anh văn...">
+    <label>Số điện thoại</label><input type="text" id="fGvSdt" value="${gv?esc(gv.sdt):''}" maxlength="30">
+    <label>Bằng cấp</label><textarea id="fGvBangCap" placeholder="VD: Cử nhân Sư phạm Toán - Đại học Cần Thơ...">${gv?esc(gv.bangCap||''):''}</textarea>
+    <label>Thành tích trong giảng dạy</label><textarea id="fGvThanhTich" placeholder="VD: 5 năm kinh nghiệm luyện thi HSG, có học sinh đạt giải Nhất cấp tỉnh...">${gv?esc(gv.thanhTich||''):''}</textarea>
+
+    <label>Ảnh chân dung</label>
+    <div id="fGvAnhChanDungXemTruoc" class="ghichu" style="margin-bottom:6px;"></div>
+    <input type="file" id="fGvAnhChanDungInput" accept="image/*" style="display:none;">
+    <button type="button" class="btn btn-nhat btn-sm" id="fGvAnhChanDungBtn">📎 Chọn ảnh chân dung</button>
+
+    <label>Ảnh bằng cấp / chứng chỉ (đính kèm được nhiều ảnh)</label>
+    <div id="fGvAnhBangCapXemTruoc" class="ghichu" style="margin-bottom:6px;"></div>
+    <input type="file" id="fGvAnhBangCapInput" accept="image/*" multiple style="display:none;">
+    <button type="button" class="btn btn-nhat btn-sm" id="fGvAnhBangCapBtn">📎 Chọn ảnh bằng cấp</button>
+
     <div id="fGvErr" class="msg err"></div>
     <div class="modal-nut">
       <button class="btn btn-nhat btn-sm" onclick="closeModal()">Hủy</button>
       <button class="btn btn-xanh btn-sm" id="fGvLuu">${gv?'Lưu':'Thêm'}</button>
     </div>`);
+
+  function veLaiXemTruocChanDung(){
+    $('fGvAnhChanDungXemTruoc').innerHTML = anhChanDungMoiId ? `<img src="${anhDriveNho(anhChanDungMoiId)}" style="width:60px;height:60px;object-fit:cover;border-radius:50%;">` : 'Chưa có ảnh.';
+  }
+  function veLaiXemTruocBangCap(){
+    $('fGvAnhBangCapXemTruoc').innerHTML = dsAnhBangCapMoi.length ? dsAnhBangCapMoi.map(aid=> `<img src="${anhDriveNho(aid)}" style="width:50px;height:50px;object-fit:cover;border-radius:6px;margin:0 4px 4px 0;">`).join('') : 'Chưa có ảnh.';
+  }
+  veLaiXemTruocChanDung(); veLaiXemTruocBangCap();
+
+  $('fGvAnhChanDungBtn').onclick = ()=> $('fGvAnhChanDungInput').click();
+  $('fGvAnhChanDungInput').onchange = async e=>{
+    const file = e.target.files[0]; e.target.value = '';
+    if(!file) return;
+    if(!dungDrive()){ showMsg($('fGvErr'), 'Chưa triển khai nơi lưu ảnh (Google Drive) — xem hướng dẫn thiết lập.', 'err'); return; }
+    showMsg($('fGvErr'), 'Đang tải ảnh lên...', 'info');
+    try{
+      const nen = await nenAnh(file, 500, 0.85);
+      const kq = await guiAnhLenDrive(nen, $('fGvTen').value.trim()||'GiaoVien', 'AnhChanDung-GiaoVien');
+      anhChanDungMoiId = kq.id;
+      veLaiXemTruocChanDung();
+      $('fGvErr').classList.remove('show');
+    }catch(err){ showMsg($('fGvErr'), baoLoi(err), 'err'); }
+  };
+  $('fGvAnhBangCapBtn').onclick = ()=> $('fGvAnhBangCapInput').click();
+  $('fGvAnhBangCapInput').onchange = async e=>{
+    const files = [...e.target.files]; e.target.value = '';
+    if(!files.length) return;
+    if(!dungDrive()){ showMsg($('fGvErr'), 'Chưa triển khai nơi lưu ảnh (Google Drive) — xem hướng dẫn thiết lập.', 'err'); return; }
+    showMsg($('fGvErr'), 'Đang tải ảnh lên...', 'info');
+    try{
+      for(const f of files){
+        if(!/^image\//.test(f.type)) continue;
+        const nen = await nenAnh(f, 1200, 0.8);
+        const kq = await guiAnhLenDrive(nen, $('fGvTen').value.trim()||'GiaoVien', 'AnhBangCap-GiaoVien');
+        dsAnhBangCapMoi.push(kq.id);
+      }
+      veLaiXemTruocBangCap();
+      $('fGvErr').classList.remove('show');
+    }catch(err){ showMsg($('fGvErr'), baoLoi(err), 'err'); }
+  };
+
   $('fGvLuu').onclick = async ()=>{
     const hoTen = $('fGvTen').value.trim();
     if(!hoTen){ showMsg($('fGvErr'), 'Vui lòng nhập họ tên.', 'err'); return; }
-    const data = { hoTen, monDay: $('fGvMon').value.trim(), sdt: $('fGvSdt').value.trim(), ghiChu: $('fGvGhiChu').value.trim() };
+    const data = {
+      hoTen, monDay: $('fGvMon').value.trim(), sdt: $('fGvSdt').value.trim(),
+      bangCap: $('fGvBangCap').value.trim(), thanhTich: $('fGvThanhTich').value.trim(),
+      anhChanDungId: anhChanDungMoiId || null,
+      anhBangCap: dsAnhBangCapMoi.reduce((o,aid,i)=>{ o['a'+i]=aid; return o; }, {})
+    };
     try{
       if(id) await giaoVienRef.child(id).set(data); else await giaoVienRef.push(data);
       closeModal();
@@ -501,8 +618,8 @@ $('gvNhapExcelInput').onchange = async e=>{
   if(!file) return;
   try{
     const ds = await docFileExcel(file, [
-      {key:'hoTen', ten:'Họ tên'}, {key:'monDay', ten:'Môn dạy'},
-      {key:'sdt', ten:'Số điện thoại'}, {key:'ghiChu', ten:'Ghi chú'}
+      {key:'hoTen', ten:'Họ tên'}, {key:'monDay', ten:'Môn dạy'}, {key:'sdt', ten:'Số điện thoại'},
+      {key:'bangCap', ten:'Bằng cấp'}, {key:'thanhTich', ten:'Thành tích'}
     ]);
     if(!ds.length){ showMsg($('gvMsg'), 'Không đọc được giáo viên nào từ file.', 'err'); return; }
     moModalXemTruocNhap('Xác nhận nhập danh sách giáo viên', ds,
