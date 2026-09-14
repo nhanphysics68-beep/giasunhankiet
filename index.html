@@ -90,6 +90,9 @@
   .tkb-ngay-the table th, .tkb-ngay-the table td{border-left:none; border-right:none;}
   .tkb-ngay-the table tr:first-child th, .tkb-ngay-the table tr:first-child td{border-top:none;}
   .tkb-ngay-the table tr:last-child td{border-bottom:none;}
+  .loc-lop-the{background:#FCFBF7; border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin-bottom:12px;}
+  .loc-lop-the h3{color:var(--navy); font-size:15px; margin-bottom:8px;}
+  .loc-lop-the .loc-so-hs{color:var(--ink-soft); font-size:12.5px; font-weight:400; font-family:"Segoe UI",sans-serif;}
 
   /* ---------- Form / Modal ---------- */
   .modal-bg{display:none; position:fixed; inset:0; background:rgba(20,30,45,.5); align-items:center; justify-content:center; z-index:50; padding:16px; overflow-y:auto;}
@@ -175,6 +178,15 @@
 
   <!-- ============ HỌC SINH ============ -->
   <div class="panel" id="panel-hocsinh">
+    <div class="card">
+      <h2>🔍 Xem học sinh theo giáo viên</h2>
+      <p class="ghichu">Chọn 1 giáo viên để xem các lớp giáo viên đó đang dạy (lấy theo Thời khóa biểu), mỗi lớp liệt kê đúng học sinh thuộc lớp đó.</p>
+      <select id="locGiaoVienChon" style="max-width:320px; padding:10px 12px; border:1.5px solid var(--line); border-radius:9px; font-family:inherit; font-size:14px;">
+        <option value="">— Chọn giáo viên —</option>
+      </select>
+      <div id="ketQuaLocTheoGV" style="margin-top:16px;"></div>
+    </div>
+
     <div class="card">
       <h2>🎓 Danh sách học sinh</h2>
       <p class="ghichu">Danh sách học sinh đang theo học tại trung tâm.</p>
@@ -510,7 +522,7 @@ function moModalGiaoVien(id){
   };
 }
 $('gvThemBtn').onclick = ()=> moModalGiaoVien(null);
-giaoVienRef.on('value', s=>{ giaoVien = s.val()||{}; renderGiaoVien(); renderTkb(); });
+giaoVienRef.on('value', s=>{ giaoVien = s.val()||{}; renderGiaoVien(); renderTkb(); renderLocTheoGiaoVien(); });
 
 /* -------------------- HỌC SINH -------------------- */
 function renderHocSinh(){
@@ -562,7 +574,57 @@ function moModalHocSinh(id){
   };
 }
 $('hsThemBtn').onclick = ()=> moModalHocSinh(null);
-hocSinhRef.on('value', s=>{ hocSinh = s.val()||{}; renderHocSinh(); });
+hocSinhRef.on('value', s=>{ hocSinh = s.val()||{}; renderHocSinh(); renderLocTheoGiaoVien(); });
+
+/* -------------------- LỌC HỌC SINH THEO GIÁO VIÊN (chia theo từng lớp) -------------------- */
+/* Tách 1 mục "Môn" trong Thời khóa biểu (VD "Toán 10", "KHTN 6,7", "Hóa 8,9,12") thành đúng
+   2 phần: tên môn học và (các) lớp — dựa vào các chữ số cuối cùng của chuỗi. */
+function tachMonVaLop(monTkb){
+  const s = String(monTkb||'').trim();
+  const m = s.match(/^(.*?)\s*([\d](?:[\d,\s]*\d)?)$/); // phần chữ ở đầu + phần số (có thể nhiều số cách nhau bởi dấu phẩy) ở cuối
+  if(m) return { mon: m[1].trim(), lop: m[2].trim() };
+  return { mon: s, lop: '' };
+}
+function layCacSo(s){ return String(s||'').match(/\d+/g) || []; }
+/* 1 học sinh được xem là thuộc lớp này nếu: mục "Môn học" của em đó có nhắc tới đúng tên môn,
+   VÀ mục "Lớp" của em đó có ít nhất 1 số khớp với (các) lớp của buổi dạy đó. */
+function hocSinhKhopLop(hs, mon, lop){
+  const monKhop = mon && String(hs.mon||'').toLowerCase().includes(mon.toLowerCase());
+  const soLop = layCacSo(lop), soHs = layCacSo(hs.lop);
+  const lopKhop = soLop.length && soHs.length && soLop.some(so=> soHs.includes(so));
+  return !!(monKhop && lopKhop);
+}
+function capNhatOChonGiaoVienLoc(){
+  const sel = $('locGiaoVienChon');
+  const giaTriCu = sel.value;
+  const dsTen = Object.values(giaoVien).map(g=> g.hoTen).filter(Boolean);
+  sel.innerHTML = `<option value="">— Chọn giáo viên —</option>` + dsTen.map(t=> `<option>${esc(t)}</option>`).join('');
+  if(dsTen.includes(giaTriCu)) sel.value = giaTriCu;
+}
+function renderLocTheoGiaoVien(){
+  capNhatOChonGiaoVienLoc();
+  const tenGv = $('locGiaoVienChon').value;
+  const host = $('ketQuaLocTheoGV');
+  if(!tenGv){ host.innerHTML = ''; return; }
+
+  const cacMonDuyNhat = [...new Set(Object.values(thoiKhoaBieu).filter(b=> b.giaoVien===tenGv).map(b=> b.mon).filter(Boolean))];
+  if(!cacMonDuyNhat.length){
+    host.innerHTML = `<p class="rong">Giáo viên này chưa có lớp nào trong Thời khóa biểu.</p>`;
+    return;
+  }
+  host.innerHTML = cacMonDuyNhat.map(monTkb=>{
+    const {mon, lop} = tachMonVaLop(monTkb);
+    const dsKhop = Object.values(hocSinh).filter(hs=> hocSinhKhopLop(hs, mon, lop));
+    return `<div class="loc-lop-the">
+      <h3>${esc(monTkb)} <span class="loc-so-hs">(${dsKhop.length} học sinh)</span></h3>
+      ${dsKhop.length ? `<table>
+        <tr><th>Họ và tên</th><th>Lớp</th><th>SĐT phụ huynh</th></tr>
+        ${dsKhop.map(hs=> `<tr><td>${esc(hs.hoTen)}</td><td>${esc(hs.lop||'')}</td><td>${esc(hs.sdtPhuHuynh||'')}</td></tr>`).join('')}
+      </table>` : `<p class="rong">Chưa có học sinh nào khớp với lớp này.</p>`}
+    </div>`;
+  }).join('');
+}
+$('locGiaoVienChon').onchange = renderLocTheoGiaoVien;
 
 /* -------------------- NHẬP TỪ EXCEL (dùng chung cho Giáo viên & Học sinh) -------------------- */
 /* Tự dò cột theo TÊN TIÊU ĐỀ trong dòng đầu file Excel (không phụ thuộc thứ tự cột).
@@ -722,7 +784,7 @@ function moModalTkb(id){
   };
 }
 $('tkbThemBtn').onclick = ()=> moModalTkb(null);
-tkbRef.on('value', s=>{ thoiKhoaBieu = s.val()||{}; renderTkb(); });
+tkbRef.on('value', s=>{ thoiKhoaBieu = s.val()||{}; renderTkb(); renderLocTheoGiaoVien(); });
 
 /* -------------------- ĐĂNG NHẬP QUẢN TRỊ -------------------- */
 $('adminUnlockBtn').onclick = async ()=>{
