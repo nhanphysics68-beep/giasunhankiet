@@ -84,6 +84,12 @@
 
   /* ---------- Thời khóa biểu ---------- */
   .tkb-mon{display:inline-block; background:var(--navy); color:#fff; font-size:12px; font-weight:700; padding:2px 9px; border-radius:6px;}
+  .tkb-ngay-the{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:0; margin-bottom:16px; box-shadow:var(--shadow); overflow:hidden;}
+  .tkb-ngay-tieude{background:linear-gradient(120deg,var(--navy-dark),var(--navy)); color:#fff; padding:10px 18px; font-weight:700; font-size:15px; font-family:Georgia,serif;}
+  .tkb-ngay-the table{margin:0;}
+  .tkb-ngay-the table th, .tkb-ngay-the table td{border-left:none; border-right:none;}
+  .tkb-ngay-the table tr:first-child th, .tkb-ngay-the table tr:first-child td{border-top:none;}
+  .tkb-ngay-the table tr:last-child td{border-bottom:none;}
 
   /* ---------- Form / Modal ---------- */
   .modal-bg{display:none; position:fixed; inset:0; background:rgba(20,30,45,.5); align-items:center; justify-content:center; z-index:50; padding:16px; overflow-y:auto;}
@@ -189,7 +195,7 @@
       <p class="ghichu">Lịch học các lớp trong tuần tại trung tâm.</p>
       <button class="btn btn-xanh btn-sm" id="tkbThemBtn" style="display:none; margin-bottom:16px;">+ Thêm buổi học</button>
       <div id="tkbMsg" class="msg"></div>
-      <div class="scroll-x"><table id="bangTkb"></table></div>
+      <div id="bangTkb"></div>
     </div>
   </div>
 
@@ -646,29 +652,40 @@ $('hsNhapExcelInput').onchange = async e=>{
 /* -------------------- THỜI KHÓA BIỂU -------------------- */
 const THU_TRONG_TUAN = ['Thứ 2','Thứ 3','Thứ 4','Thứ 5','Thứ 6','Thứ 7','Chủ nhật'];
 function renderTkb(){
-  const table = $('bangTkb');
-  const ds = Object.entries(thoiKhoaBieu).sort((a,b)=>{
-    const ta = THU_TRONG_TUAN.indexOf(a[1].thu), tb = THU_TRONG_TUAN.indexOf(b[1].thu);
-    return ta !== tb ? ta-tb : String(a[1].gio||'').localeCompare(String(b[1].gio||''));
-  });
+  const host = $('bangTkb');
+  const ds = Object.entries(thoiKhoaBieu);
   $('tkbThemBtn').style.display = isAdmin ? 'inline-block' : 'none';
   $('tkSoLopHoc').textContent = ds.length;
 
-  let h = `<tr><th>Thứ</th><th>Giờ</th><th>Môn</th><th>Giáo viên</th><th>Phòng</th>${isAdmin?'<th></th>':''}</tr>`;
   if(!ds.length){
-    h += `<tr><td colspan="${isAdmin?6:5}" class="rong">Chưa có buổi học nào.</td></tr>`;
-  } else {
-    ds.forEach(([id,b])=>{
-      h += `<tr><td>${esc(b.thu||'')}</td><td>${esc(b.gio||'')}</td><td><span class="tkb-mon">${esc(b.mon||'')}</span></td>
-        <td>${esc(b.giaoVien||'')}</td><td>${esc(b.phong||'')}</td>
-        ${isAdmin ? `<td style="white-space:nowrap;">
-          <button class="btn btn-nhat btn-sm" data-tkb-sua="${id}">Sửa</button>
-          <button class="btn btn-huy btn-sm" data-tkb-xoa="${id}">Xóa</button></td>` : ''}</tr>`;
-    });
+    host.innerHTML = `<div class="rong">Chưa có buổi học nào.</div>`;
+    return;
   }
-  table.innerHTML = h;
-  table.querySelectorAll('[data-tkb-sua]').forEach(b=> b.onclick = ()=> moModalTkb(b.getAttribute('data-tkb-sua')));
-  table.querySelectorAll('[data-tkb-xoa]').forEach(b=> b.onclick = async ()=>{
+
+  // Gom theo đúng thứ tự Thứ 2 -> Chủ nhật, mỗi ngày 1 khung riêng, bên trong sắp theo giờ học
+  const theoNgay = new Map();
+  THU_TRONG_TUAN.forEach(t=> theoNgay.set(t, []));
+  ds.forEach(([id,b])=>{
+    const thu = THU_TRONG_TUAN.includes(b.thu) ? b.thu : THU_TRONG_TUAN[0];
+    theoNgay.get(thu).push([id,b]);
+  });
+  theoNgay.forEach(list=> list.sort((a,b)=> String(a[1].gio||'').localeCompare(String(b[1].gio||''))));
+
+  host.innerHTML = [...theoNgay.entries()].filter(([,list])=> list.length).map(([thu,list])=> `
+    <div class="tkb-ngay-the">
+      <div class="tkb-ngay-tieude">${esc(thu)}</div>
+      <table>
+        <tr><th>Giờ</th><th>Môn</th><th>Giáo viên</th><th>Phòng</th>${isAdmin?'<th></th>':''}</tr>
+        ${list.map(([id,b])=> `<tr><td>${esc(b.gio||'')}</td><td><span class="tkb-mon">${esc(b.mon||'')}</span></td>
+          <td>${esc(b.giaoVien||'')}</td><td>${esc(b.phong||'')}</td>
+          ${isAdmin ? `<td style="white-space:nowrap;">
+            <button class="btn btn-nhat btn-sm" data-tkb-sua="${id}">Sửa</button>
+            <button class="btn btn-huy btn-sm" data-tkb-xoa="${id}">Xóa</button></td>` : ''}</tr>`).join('')}
+      </table>
+    </div>`).join('');
+
+  host.querySelectorAll('[data-tkb-sua]').forEach(b=> b.onclick = ()=> moModalTkb(b.getAttribute('data-tkb-sua')));
+  host.querySelectorAll('[data-tkb-xoa]').forEach(b=> b.onclick = async ()=>{
     if(!confirm('Xóa buổi học này?')) return;
     try{ await tkbRef.child(b.getAttribute('data-tkb-xoa')).remove(); }
     catch(e){ showMsg($('tkbMsg'), baoLoi(e), 'err'); }
