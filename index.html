@@ -84,6 +84,10 @@
 
   /* ---------- Thời khóa biểu ---------- */
   .tkb-mon{display:inline-block; background:var(--navy); color:#fff; font-size:12px; font-weight:700; padding:2px 9px; border-radius:6px;}
+  .tkb-buoi{display:inline-block; font-size:12px; font-weight:700; padding:2px 9px; border-radius:6px; white-space:nowrap;}
+  .tkb-buoi-sang{background:#fff3cd; color:#8a6100;}
+  .tkb-buoi-chieu{background:#dbeafe; color:#1d4ed8;}
+  .tkb-buoi-toi{background:#ede9fe; color:#5b21b6;}
   .tkb-ngay-the{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:0; margin-bottom:16px; box-shadow:var(--shadow); overflow:hidden;}
   .tkb-ngay-tieude{background:linear-gradient(120deg,var(--navy-dark),var(--navy)); color:#fff; padding:10px 18px; font-weight:700; font-size:15px; font-family:Georgia,serif;}
   .tkb-ngay-the table{margin:0;}
@@ -713,6 +717,22 @@ $('hsNhapExcelInput').onchange = async e=>{
 
 /* -------------------- THỜI KHÓA BIỂU -------------------- */
 const THU_TRONG_TUAN = ['Thứ 2','Thứ 3','Thứ 4','Thứ 5','Thứ 6','Thứ 7','Chủ nhật'];
+const BUOI_TRONG_NGAY = ['Sáng','Chiều','Tối'];
+/* Suy ra Buổi (Sáng/Chiều/Tối) từ chuỗi giờ học (VD "13h30-15h", "7:00 - 9:00", "18h30-20h")
+   dựa trên giờ bắt đầu, dùng để tự điền cho các buổi học cũ chưa có trường "buoi". */
+function suyRaBuoi(gio){
+  const m = String(gio||'').match(/(\d{1,2})/);
+  if(!m) return 'Sáng';
+  const h = parseInt(m[1], 10);
+  if(h < 11) return 'Sáng';
+  if(h < 18) return 'Chiều';
+  return 'Tối';
+}
+function lopBuoi(buoi){
+  if(buoi==='Chiều') return 'tkb-buoi-chieu';
+  if(buoi==='Tối') return 'tkb-buoi-toi';
+  return 'tkb-buoi-sang';
+}
 function renderTkb(){
   const host = $('bangTkb');
   const ds = Object.entries(thoiKhoaBieu);
@@ -731,18 +751,23 @@ function renderTkb(){
     const thu = THU_TRONG_TUAN.includes(b.thu) ? b.thu : THU_TRONG_TUAN[0];
     theoNgay.get(thu).push([id,b]);
   });
-  theoNgay.forEach(list=> list.sort((a,b)=> String(a[1].gio||'').localeCompare(String(b[1].gio||''))));
+  theoNgay.forEach(list=> list.sort((a,b)=>{
+    const buoiA = BUOI_TRONG_NGAY.indexOf(a[1].buoi || suyRaBuoi(a[1].gio));
+    const buoiB = BUOI_TRONG_NGAY.indexOf(b[1].buoi || suyRaBuoi(b[1].gio));
+    if(buoiA !== buoiB) return buoiA - buoiB;
+    return String(a[1].gio||'').localeCompare(String(b[1].gio||''));
+  }));
 
   host.innerHTML = [...theoNgay.entries()].filter(([,list])=> list.length).map(([thu,list])=> `
     <div class="tkb-ngay-the">
       <div class="tkb-ngay-tieude">${esc(thu)}</div>
       <table>
-        <tr><th>Giờ</th><th>Môn</th><th>Giáo viên</th><th>Phòng</th>${isAdmin?'<th></th>':''}</tr>
-        ${list.map(([id,b])=> `<tr><td>${esc(b.gio||'')}</td><td><span class="tkb-mon">${esc(b.mon||'')}</span></td>
+        <tr><th>Buổi</th><th>Giờ</th><th>Môn</th><th>Giáo viên</th><th>Phòng</th>${isAdmin?'<th></th>':''}</tr>
+        ${list.map(([id,b])=>{ const buoi = b.buoi || suyRaBuoi(b.gio); return `<tr><td><span class="tkb-buoi ${lopBuoi(buoi)}">${esc(buoi)}</span></td><td>${esc(b.gio||'')}</td><td><span class="tkb-mon">${esc(b.mon||'')}</span></td>
           <td>${esc(b.giaoVien||'')}</td><td>${esc(b.phong||'')}</td>
           ${isAdmin ? `<td style="white-space:nowrap;">
             <button class="btn btn-nhat btn-sm" data-tkb-sua="${id}">Sửa</button>
-            <button class="btn btn-huy btn-sm" data-tkb-xoa="${id}">Xóa</button></td>` : ''}</tr>`).join('')}
+            <button class="btn btn-huy btn-sm" data-tkb-xoa="${id}">Xóa</button></td>` : ''}</tr>`; }).join('')}
       </table>
     </div>`).join('');
 
@@ -756,9 +781,12 @@ function renderTkb(){
 function moModalTkb(id){
   const b = id ? thoiKhoaBieu[id] : null;
   const dsTenGv = Object.values(giaoVien).map(g=>g.hoTen).filter(Boolean);
+  const buoiHienTai = b ? (b.buoi || suyRaBuoi(b.gio)) : 'Sáng';
   openModal(`<h3>${b?'Sửa':'Thêm'} buổi học</h3>
     <label>Thứ</label>
     <select id="fTkbThu">${THU_TRONG_TUAN.map(t=> `<option ${b&&b.thu===t?'selected':''}>${t}</option>`).join('')}</select>
+    <label>Buổi</label>
+    <select id="fTkbBuoi">${BUOI_TRONG_NGAY.map(t=> `<option ${buoiHienTai===t?'selected':''}>${t}</option>`).join('')}</select>
     <label>Giờ học</label><input type="text" id="fTkbGio" value="${b?esc(b.gio):''}" maxlength="30" placeholder="VD: 18:00 - 19:30">
     <label>Môn</label><input type="text" id="fTkbMon" value="${b?esc(b.mon):''}" maxlength="40">
     <label>Giáo viên</label>
@@ -775,7 +803,7 @@ function moModalTkb(id){
   $('fTkbLuu').onclick = async ()=>{
     const mon = $('fTkbMon').value.trim();
     if(!mon){ showMsg($('fTkbErr'), 'Vui lòng nhập tên môn.', 'err'); return; }
-    const data = { thu: $('fTkbThu').value, gio: $('fTkbGio').value.trim(), mon,
+    const data = { thu: $('fTkbThu').value, buoi: $('fTkbBuoi').value, gio: $('fTkbGio').value.trim(), mon,
       giaoVien: $('fTkbGiaoVien').value, phong: $('fTkbPhong').value.trim() };
     try{
       if(id) await tkbRef.child(id).set(data); else await tkbRef.push(data);
